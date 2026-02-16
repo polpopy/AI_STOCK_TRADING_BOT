@@ -56,23 +56,33 @@ except:
 st.write("### 🕯️ Watchlist Technicals")
 selected_stock = st.selectbox("Select a stock to inspect:", config.WATCHLIST)
 
-# Clean the ticker to remove accidental spaces
+# Clean the ticker
 clean_ticker = selected_stock.strip()
 
-# THE FIX: Use Ticker().history() for clean, guaranteed chart data
+# Fetch data using history()
 stock_obj = yf.Ticker(clean_ticker)
 data = stock_obj.history(period="60d")
 
 if data.empty:
-    st.error(f"⚠️ Yahoo Finance returned no data for {clean_ticker}. Check your config.py for typos!")
+    st.error(f"⚠️ Yahoo Finance returned no data for {clean_ticker}.")
 else:
-    # Create a professional candlestick chart
+    # 1. Reset the index so the Date becomes a normal, readable column
+    data = data.reset_index()
+    
+    # 2. Find the date column name ('Date' or 'Datetime')
+    date_col = 'Date' if 'Date' in data.columns else 'Datetime'
+    
+    # 3. THE FIX: Strip the timezone data that makes Plotly crash
+    data[date_col] = pd.to_datetime(data[date_col]).dt.tz_localize(None)
+
+    # Create the chart using the cleaned date column
     fig = go.Figure(data=[go.Candlestick(
-        x=data.index,
+        x=data[date_col],
         open=data['Open'], high=data['High'],
         low=data['Low'], close=data['Close'],
         name="Price"
     )])
+    
     fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0, r=0, t=30, b=0))
     st.plotly_chart(fig, use_container_width=True)
 
@@ -97,5 +107,6 @@ try:
         st.table(pos_data)
 except Exception as e:
     st.error(f"Error fetching positions: {e}")
+
 
 
