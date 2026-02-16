@@ -1,8 +1,0 @@
-alpaca-py
-yfinance
-pandas
-ta
-streamlit
-plotly
-schedule
-colorama
