@@ -56,17 +56,16 @@ except:
 st.write("### 🕯️ Watchlist Technicals")
 selected_stock = st.selectbox("Select a stock to inspect:", config.WATCHLIST)
 
-# UPGRADED: Define clean_ticker and use threads=False
+# Clean the ticker to remove accidental spaces
 clean_ticker = selected_stock.strip()
-data = yf.download(clean_ticker, period="60d", interval="1d", progress=False, threads=False)
 
-# UPGRADED: Safety check to prevent Year 2000 blank charts
+# THE FIX: Use Ticker().history() for clean, guaranteed chart data
+stock_obj = yf.Ticker(clean_ticker)
+data = stock_obj.history(period="60d")
+
 if data.empty:
     st.error(f"⚠️ Yahoo Finance returned no data for {clean_ticker}. Check your config.py for typos!")
 else:
-    if isinstance(data.columns, pd.MultiIndex): 
-        data.columns = data.columns.get_level_values(0)
-
     # Create a professional candlestick chart
     fig = go.Figure(data=[go.Candlestick(
         x=data.index,
@@ -74,7 +73,7 @@ else:
         low=data['Low'], close=data['Close'],
         name="Price"
     )])
-    fig.update_layout(template="plotly_dark", height=400)
+    fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0, r=0, t=30, b=0))
     st.plotly_chart(fig, use_container_width=True)
 
 # --- 6. BOTTOM ROW: POSITIONS ---
@@ -98,4 +97,5 @@ try:
         st.table(pos_data)
 except Exception as e:
     st.error(f"Error fetching positions: {e}")
+
 
