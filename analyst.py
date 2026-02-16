@@ -1,7 +1,7 @@
+import os
 import yfinance as yf
 import ta
 import pandas as pd
-import config 
 import schedule
 import time
 from alpaca.trading.client import TradingClient
@@ -9,13 +9,23 @@ from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
 from colorama import Fore, init
 
-# Initialize colorama to make terminal text colorful and readable
+# Try to import config, but don't crash if it's missing (it will be missing on GitHub)
+try:
+    import config
+    ALPACA_KEY = config.ALPACA_API_KEY
+    ALPACA_SECRET = config.ALPACA_SECRET_KEY
+except ImportError:
+    # On GitHub Actions, we pull from the Secrets you just added
+    ALPACA_KEY = os.getenv('ALPACA_API_KEY')
+    ALPACA_SECRET = os.getenv('ALPACA_SECRET_KEY')
+
+# Initialize colorama
 init(autoreset=True)
 
 # ---------------------------------------------------------
 # 1. INITIALIZATION: Setting up the 'Hands'
 # ---------------------------------------------------------
-trading_client = TradingClient(config.ALPACA_API_KEY, config.ALPACA_SECRET_KEY, paper=True)
+trading_client = TradingClient(ALPACA_KEY, ALPACA_SECRET, paper=True)
 
 def get_market_regime():
     """Checks the 'Weather' of the overall US Stock Market."""
@@ -177,3 +187,4 @@ if __name__ == "__main__":
     while True:
         schedule.run_pending()
         time.sleep(1)
+
