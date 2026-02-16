@@ -56,36 +56,37 @@ except:
 st.write("### 🕯️ Watchlist Technicals")
 selected_stock = st.selectbox("Select a stock to inspect:", config.WATCHLIST)
 
-# Clean the ticker
 clean_ticker = selected_stock.strip()
 
-# Fetch data using history()
-stock_obj = yf.Ticker(clean_ticker)
-data = stock_obj.history(period="60d")
+# Fetch the data
+data = yf.download(clean_ticker, period="60d", interval="1d", progress=False, threads=False)
 
 if data.empty:
     st.error(f"⚠️ Yahoo Finance returned no data for {clean_ticker}.")
 else:
-    # 1. Reset the index so the Date becomes a normal, readable column
-    data = data.reset_index()
-    
-    # 2. Find the date column name ('Date' or 'Datetime')
-    date_col = 'Date' if 'Date' in data.columns else 'Datetime'
-    
-    # 3. THE FIX: Strip the timezone data that makes Plotly crash
-    data[date_col] = pd.to_datetime(data[date_col]).dt.tz_localize(None)
+    # 1. THE SLEDGEHAMMER: Forcefully flatten any weird Yahoo column structures
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+        
+    # Force the index (dates) to be standard and timezone-naive
+    data.index = pd.to_datetime(data.index).tz_localize(None)
 
-    # Create the chart using the cleaned date column
-    fig = go.Figure(data=[go.Candlestick(
-        x=data[date_col],
-        open=data['Open'], high=data['High'],
-        low=data['Low'], close=data['Close'],
-        name="Price"
-    )])
-    
-    fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0, r=0, t=30, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    # 2. THE X-RAY: Print the raw table to the screen so we can see it!
+    st.write("🔍 **Debug View:** (If you see numbers below, the download worked!)")
+    st.dataframe(data.tail(3))
 
+    # 3. Draw the chart
+    try:
+        fig = go.Figure(data=[go.Candlestick(
+            x=data.index,
+            open=float(data['Open']), high=float(data['High']),
+            low=float(data['Low']), close=float(data['Close']),
+            name="Price"
+        )])
+        fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig, use_container_width=True)
+    except Exception as e:
+        st.error(f"Chart Drawing Error: {e}")
 # --- 6. BOTTOM ROW: POSITIONS ---
 st.write("### 📁 Active Positions")
 try:
@@ -107,6 +108,7 @@ try:
         st.table(pos_data)
 except Exception as e:
     st.error(f"Error fetching positions: {e}")
+
 
 
 
