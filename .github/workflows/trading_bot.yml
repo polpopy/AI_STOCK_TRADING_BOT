@@ -1,0 +1,29 @@
+name: Autonomous AI Trading Bot
+
+on:
+  schedule:
+    # This translates to 10:00 AM EST (US Market Open + 30 mins)
+    # Which is exactly 4:00 PM (16:00) local time in Morocco!
+    - cron: '0 15 * * 1-5' 
+  workflow_dispatch: # This adds a manual "Play" button for testing
+
+jobs:
+  run-analyst-brain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Bot Code
+        uses: actions/checkout@v4
+
+      - name: Wake up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Data Science Libraries
+        run: pip install -r requirements.txt
+
+      - name: Execute Trading Scan
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python analyst.py
