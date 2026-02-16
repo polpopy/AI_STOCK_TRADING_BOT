@@ -7,33 +7,26 @@ from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
 from colorama import Fore, init
 
-# --- 1. CLOUD & LOCAL AUTHENTICATION ---
+# --- 1. SMART AUTHENTICATION ---
 init(autoreset=True)
 
-# THE SWITCHER: Try local config first, then try GitHub Secrets
-try:
-    import config
-    ALPACA_KEY = config.ALPACA_API_KEY
-    ALPACA_SECRET = config.ALPACA_SECRET_KEY
-    RSI_W = config.RSI_WINDOW
-    EMA_W = config.EMA_WINDOW
-    WATCHLIST = config.WATCHLIST
-    TRADE_AMT = config.TRADE_AMOUNT
-    print(f"{Fore.CYAN}[i] Running in LOCAL mode using config.py")
-except ImportError:
-    # If config.py is missing (like on GitHub Actions), use Secrets
-    ALPACA_KEY = os.getenv('ALPACA_API_KEY')
-    ALPACA_SECRET = os.getenv('ALPACA_SECRET_KEY')
-    # Default parameters for the Cloud
-    RSI_W = 21
-    EMA_W = 50
-    WATCHLIST = ["NVDA", "TSLA", "AAPL", "MSFT", "AMD", "PLTR", "SMCI"]
-    TRADE_AMT = 5000
-    print(f"{Fore.CYAN}[i] Running in CLOUD mode using GitHub Secrets")
+# THE SWITCHER: We check GitHub Secrets first, then fall back to config.py
+ALPACA_KEY = os.getenv('ALPACA_API_KEY')
+ALPACA_SECRET = os.getenv('ALPACA_SECRET_KEY')
 
-# CRITICAL SAFETY CHECK: Stop the script if keys are missing
-if not ALPACA_KEY or not ALPACA_SECRET:
-    print(f"{Fore.RED}❌ ERROR: Authentication keys are missing! Check your GitHub Secrets.")
+# If GitHub Secrets are empty (running on your laptop), try the local config file
+if not ALPACA_KEY:
+    try:
+        import config
+        ALPACA_KEY = config.ALPACA_API_KEY
+        ALPACA_SECRET = config.ALPACA_SECRET_KEY
+        print(f"{Fore.CYAN}[i] Running in LOCAL mode using config.py")
+    except ImportError:
+        pass
+
+# Final check: If both are empty or still the default text, stop for safety
+if not ALPACA_KEY or ALPACA_KEY == "YOUR_API_KEY_HERE":
+    print(f"{Fore.RED}❌ ERROR: No valid keys found in Secrets OR config.py!")
     exit(1)
 
 # Connect to Alpaca
@@ -44,7 +37,7 @@ trading_client = TradingClient(ALPACA_KEY, ALPACA_SECRET, paper=True)
 def get_market_regime():
     """Checks the 'Weather' of the overall US Market."""
     try:
-        # Use threads=False to prevent cloud freezing
+        # threads=False prevents the cloud from freezing the connection
         spy = yf.download("SPY", period="250d", progress=False, threads=False)
         if isinstance(spy.columns, pd.MultiIndex):
             spy.columns = spy.columns.get_level_values(0)
@@ -58,18 +51,21 @@ def get_market_regime():
         return "BEAR" # Safety default
 
 def analyze_and_trade():
-    """The brain that scans for buying opportunities."""
+    """The core brain that scans and executes trades."""
     print(f"{Fore.YELLOW}🚀 Starting AI Market Scan...")
     
-    # Rule 1: Don't buy in a Bear Market
+    # Check Market Shield Status
     if get_market_regime() == "BEAR":
         print(f"{Fore.RED}[!] Market Shield is RED (BEAR). New buys are locked for safety.")
         return
 
-    # Rule 2: Don't buy what you already own
+    # Watchlist parameters (Matches your dashboard)
+    watchlist = ["NVDA", "TSLA", "AAPL", "MSFT", "AMD", "PLTR", "SMCI"]
+    
+    # Don't buy what you already own
     current_holdings = [p.symbol for p in trading_client.get_all_positions()]
     
-    for symbol in WATCHLIST:
+    for symbol in watchlist:
         if symbol in current_holdings:
             continue
             
@@ -79,8 +75,8 @@ def analyze_and_trade():
                 df.columns = df.columns.get_level_values(0)
             
             price = df['Close'].iloc[-1]
-            ema = ta.trend.ema_indicator(df['Close'], window=EMA_W).iloc[-1]
-            rsi = ta.momentum.rsi(df['Close'], window=RSI_W).iloc[-1]
+            ema = ta.trend.ema_indicator(df['Close'], window=50).iloc[-1]
+            rsi = ta.momentum.rsi(df['Close'], window=21).iloc[-1]
             macd = ta.trend.macd(df['Close']).iloc[-1]
             macd_s = ta.trend.macd_signal(df['Close']).iloc[-1]
             
@@ -94,7 +90,7 @@ def analyze_and_trade():
 
             # Execution: Buy if Score is 80 or higher
             if score >= 80:
-                qty = int(TRADE_AMT / price)
+                qty = int(5000 / price) # Buying $5,000 blocks
                 if qty > 0:
                     order = MarketOrderRequest(
                         symbol=symbol, qty=qty, 
@@ -107,17 +103,19 @@ def analyze_and_trade():
 
 # --- 3. DASHBOARD BRIDGE (For the Streamlit Button) ---
 def run_full_scan():
-    """Returns signals to the dashboard without trading."""
+    """Returns signals to the dashboard website without trading."""
+    watchlist = ["NVDA", "TSLA", "AAPL", "MSFT", "AMD", "PLTR", "SMCI"]
     results = []
-    for symbol in WATCHLIST:
+    for symbol in watchlist:
         try:
             df = yf.download(symbol, period="100d", progress=False, threads=False)
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
             
             price = float(df['Close'].iloc[-1])
-            rsi = float(ta.momentum.rsi(df['Close'], window=RSI_W).iloc[-1])
+            rsi = float(ta.momentum.rsi(df['Close'], window=21).iloc[-1])
             
+            # Translate RSI into a simple dashboard signal
             signal = "HOLD 🟡"
             if rsi < 35: signal = "BUY 🟢"
             elif rsi > 70: signal = "SELL 🔴"
@@ -127,7 +125,7 @@ def run_full_scan():
             results.append({"ticker": symbol, "price": 0, "signal": "ERROR"})
     return results
 
-# --- 4. MAIN TRIGGER ---
+# --- 4. EXECUTION ---
 if __name__ == "__main__":
-    # When GitHub Actions wakes up, it runs this
+    # When GitHub Actions wakes up, it runs this function
     analyze_and_trade()
