@@ -57,28 +57,30 @@ st.write("### 🕯️ Watchlist Technicals")
 selected_stock = st.selectbox("Select a stock to inspect:", config.WATCHLIST)
 
 clean_ticker = selected_stock.strip()
-
-# Fetch the data
 data = yf.download(clean_ticker, period="60d", interval="1d", progress=False, threads=False)
 
 if data.empty:
     st.error(f"⚠️ Yahoo Finance returned no data for {clean_ticker}.")
 else:
-    # Flatten any weird Yahoo column structures
+    # 1. Flatten the MultiIndex
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
         
-    # Force the index (dates) to be standard and timezone-naive
-    data.index = pd.to_datetime(data.index).tz_localize(None)
+    # 2. THE NUCLEAR OPTION: Convert everything to raw Python lists.
+    # This strips away ALL hidden Yahoo metadata that is crashing Plotly.
+    x_dates = data.index.strftime('%Y-%m-%d').tolist()
+    open_data = data['Open'].tolist()
+    high_data = data['High'].tolist()
+    low_data = data['Low'].tolist()
+    close_data = data['Close'].tolist()
 
-    # Draw the chart (Bug fixed: Removed the float() wrappers!)
     try:
         fig = go.Figure(data=[go.Candlestick(
-            x=data.index,
-            open=data['Open'], 
-            high=data['High'],
-            low=data['Low'], 
-            close=data['Close'],
+            x=x_dates,
+            open=open_data, 
+            high=high_data,
+            low=low_data, 
+            close=close_data,
             name="Price"
         )])
         fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0, r=0, t=30, b=0))
@@ -106,6 +108,7 @@ try:
         st.table(pos_data)
 except Exception as e:
     st.error(f"Error fetching positions: {e}")
+
 
 
 
