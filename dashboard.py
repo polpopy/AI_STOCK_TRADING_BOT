@@ -15,22 +15,18 @@ st.set_page_config(page_title="Polpo & Klamo nite AI Trading Hub", layout="wide"
 trading_client = TradingClient(config.ALPACA_API_KEY, config.ALPACA_SECRET_KEY, paper=True)
 
 # --- 3. SIDEBAR (Control Panel) ---
-st.sidebar.title("🤖 Bot Controls")
-st.sidebar.info(f"Using Strategy: RSI({config.RSI_WINDOW}) + EMA({config.EMA_WINDOW})")
-
-# UPGRADED: Button is now connected to analyst.py
+# UPGRADED: Button is now connected to analyst.py (Crash-proof version)
 if st.sidebar.button("Run Manual Scan Now"):
-    with st.sidebar.status("Scanning Markets...", expanded=True):
-        st.write("Fetching latest prices & indicators...")
-        scan_results = analyst.run_full_scan() # Triggers the logic
-        
-        st.write("---")
-        st.write("### 📡 Scan Results:")
-        for res in scan_results:
-            if res['signal'] == "ERROR":
-                st.error(f"{res['ticker']}: Data Error")
-            else:
-                st.write(f"**{res['ticker']}**: {res['signal']} (${res['price']:.2f})")
+    st.sidebar.info("⏳ Scanning Markets... Please wait.")
+    scan_results = analyst.run_full_scan() # Triggers the logic
+    
+    st.sidebar.write("---")
+    st.sidebar.write("### 📡 Scan Results:")
+    for res in scan_results:
+        if res['signal'] == "ERROR":
+            st.sidebar.error(f"{res['ticker']}: Data Error")
+        else:
+            st.sidebar.write(f"**{res['ticker']}**: {res['signal']} (${res['price']:.2f})")
 
 # --- 4. TOP ROW: LIVE METRICS ---
 st.title("📊 Portfolio Overview")
@@ -102,3 +98,4 @@ try:
         st.table(pos_data)
 except Exception as e:
     st.error(f"Error fetching positions: {e}")
+
