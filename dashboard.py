@@ -64,23 +64,21 @@ data = yf.download(clean_ticker, period="60d", interval="1d", progress=False, th
 if data.empty:
     st.error(f"⚠️ Yahoo Finance returned no data for {clean_ticker}.")
 else:
-    # 1. THE SLEDGEHAMMER: Forcefully flatten any weird Yahoo column structures
+    # Flatten any weird Yahoo column structures
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
         
     # Force the index (dates) to be standard and timezone-naive
     data.index = pd.to_datetime(data.index).tz_localize(None)
 
-    # 2. THE X-RAY: Print the raw table to the screen so we can see it!
-    st.write("🔍 **Debug View:** (If you see numbers below, the download worked!)")
-    st.dataframe(data.tail(3))
-
-    # 3. Draw the chart
+    # Draw the chart (Bug fixed: Removed the float() wrappers!)
     try:
         fig = go.Figure(data=[go.Candlestick(
             x=data.index,
-            open=float(data['Open']), high=float(data['High']),
-            low=float(data['Low']), close=float(data['Close']),
+            open=data['Open'], 
+            high=data['High'],
+            low=data['Low'], 
+            close=data['Close'],
             name="Price"
         )])
         fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0, r=0, t=30, b=0))
@@ -108,6 +106,7 @@ try:
         st.table(pos_data)
 except Exception as e:
     st.error(f"Error fetching positions: {e}")
+
 
 
 
