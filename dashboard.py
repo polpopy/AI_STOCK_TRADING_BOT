@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
 import config
+import analyst  # <-- We are importing your Brain file here!
 from alpaca.trading.client import TradingClient
 from datetime import datetime
 
@@ -16,58 +17,88 @@ trading_client = TradingClient(config.ALPACA_API_KEY, config.ALPACA_SECRET_KEY, 
 # --- 3. SIDEBAR (Control Panel) ---
 st.sidebar.title("🤖 Bot Controls")
 st.sidebar.info(f"Using Strategy: RSI({config.RSI_WINDOW}) + EMA({config.EMA_WINDOW})")
+
+# UPGRADED: Button is now connected to analyst.py
 if st.sidebar.button("Run Manual Scan Now"):
-    st.sidebar.write("Scan Triggered...") # We can link this to analyst.py later
+    with st.sidebar.status("Scanning Markets...", expanded=True):
+        st.write("Fetching latest prices & indicators...")
+        scan_results = analyst.run_full_scan() # Triggers the logic
+        
+        st.write("---")
+        st.write("### 📡 Scan Results:")
+        for res in scan_results:
+            if res['signal'] == "ERROR":
+                st.error(f"{res['ticker']}: Data Error")
+            else:
+                st.write(f"**{res['ticker']}**: {res['signal']} (${res['price']:.2f})")
 
 # --- 4. TOP ROW: LIVE METRICS ---
-account = trading_client.get_account()
 st.title("📊 Portfolio Overview")
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Cash Balance", f"${float(account.cash):,.2f}")
-col2.metric("Buying Power", f"${float(account.buying_power):,.2f}")
-col3.metric("Equity", f"${float(account.equity):,.2f}")
+try:
+    account = trading_client.get_account()
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Cash Balance", f"${float(account.cash):,.2f}")
+    col2.metric("Buying Power", f"${float(account.buying_power):,.2f}")
+    col3.metric("Equity", f"${float(account.equity):,.2f}")
+except Exception as e:
+    st.error(f"Alpaca Connection Error: {e}")
+    col1, col2, col3, col4 = st.columns(4) # Fallback columns
 
 # Check Market Shield Status (S&P 500)
-spy = yf.download("SPY", period="5d", interval="1d", progress=False)
-if isinstance(spy.columns, pd.MultiIndex): spy.columns = spy.columns.get_level_values(0)
-market_price = spy['Close'].iloc[-1]
-market_status = "🟢 BULL" if market_price > spy['Close'].mean() else "🔴 BEAR"
-col4.metric("Market Shield", market_status)
+try:
+    # UPGRADED: Added threads=False to prevent cloud freeze
+    spy = yf.download("SPY", period="5d", interval="1d", progress=False, threads=False)
+    if isinstance(spy.columns, pd.MultiIndex): spy.columns = spy.columns.get_level_values(0)
+    market_price = spy['Close'].iloc[-1]
+    market_status = "🟢 BULL" if market_price > spy['Close'].mean() else "🔴 BEAR"
+    col4.metric("Market Shield", market_status)
+except:
+    col4.metric("Market Shield", "⚠️ ERROR")
 
 # --- 5. MIDDLE ROW: LIVE CHARTS ---
 st.write("### 🕯️ Watchlist Technicals")
 selected_stock = st.selectbox("Select a stock to inspect:", config.WATCHLIST)
 
-# Download data for the chart
-data = yf.download(selected_stock, period="60d", interval="1d", progress=False)
-if isinstance(data.columns, pd.MultiIndex): data.columns = data.columns.get_level_values(0)
+# UPGRADED: Define clean_ticker and use threads=False
+clean_ticker = selected_stock.strip()
+data = yf.download(clean_ticker, period="60d", interval="1d", progress=False, threads=False)
 
-# Create a professional candlestick chart
-fig = go.Figure(data=[go.Candlestick(
-    x=data.index,
-    open=data['Open'], high=data['High'],
-    low=data['Low'], close=data['Close'],
-    name="Price"
-)])
-fig.update_layout(template="plotly_dark", height=400)
-st.plotly_chart(fig, use_container_width=True)
+# UPGRADED: Safety check to prevent Year 2000 blank charts
+if data.empty:
+    st.error(f"⚠️ Yahoo Finance returned no data for {clean_ticker}. Check your config.py for typos!")
+else:
+    if isinstance(data.columns, pd.MultiIndex): 
+        data.columns = data.columns.get_level_values(0)
+
+    # Create a professional candlestick chart
+    fig = go.Figure(data=[go.Candlestick(
+        x=data.index,
+        open=data['Open'], high=data['High'],
+        low=data['Low'], close=data['Close'],
+        name="Price"
+    )])
+    fig.update_layout(template="plotly_dark", height=400)
+    st.plotly_chart(fig, use_container_width=True)
 
 # --- 6. BOTTOM ROW: POSITIONS ---
 st.write("### 📁 Active Positions")
-positions = trading_client.get_all_positions()
+try:
+    positions = trading_client.get_all_positions()
 
-if not positions:
-    st.write("No active trades. Bot is waiting for signals.")
-else:
-    # Convert Alpaca positions to a clean table
-    pos_data = []
-    for p in positions:
-        pos_data.append({
-            "Symbol": p.symbol,
-            "Qty": p.qty,
-            "Entry Price": f"${float(p.avg_entry_price):.2f}",
-            "Current Price": f"${float(p.current_price):.2f}",
-            "P/L ($)": f"${float(p.unrealized_pl):.2f}"
-        })
-    st.table(pos_data)
+    if not positions:
+        st.write("No active trades. Bot is waiting for signals.")
+    else:
+        # Convert Alpaca positions to a clean table
+        pos_data = []
+        for p in positions:
+            pos_data.append({
+                "Symbol": p.symbol,
+                "Qty": p.qty,
+                "Entry Price": f"${float(p.avg_entry_price):.2f}",
+                "Current Price": f"${float(p.current_price):.2f}",
+                "P/L ($)": f"${float(p.unrealized_pl):.2f}"
+            })
+        st.table(pos_data)
+except Exception as e:
+    st.error(f"Error fetching positions: {e}")
