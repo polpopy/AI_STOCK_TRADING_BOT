@@ -6,4 +6,4 @@ streamlit
 plotly
 schedule
 colorama
-altair
+altair<5
