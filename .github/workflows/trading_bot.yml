@@ -2,8 +2,8 @@ name: Autonomous AI Trading Bot
 
 on:
   schedule:
-    - cron: '0 15 * * 1-5' # 4:00 PM Morocco / 10:00 AM New York
-  workflow_dispatch: # Allows manual testing
+    - cron: '0 15 * * 1-5'
+  workflow_dispatch:
 
 jobs:
   run-analyst-brain:
@@ -21,8 +21,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Execute Trading Scan
-        # THE FIX: This section MUST be indented exactly like this to work
         env:
+          # This tells GitHub: "Take my Secret and call it ALPACA_API_KEY inside the script"
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: python analyst.py
