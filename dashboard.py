@@ -87,15 +87,18 @@ else:
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
         st.error(f"Chart Drawing Error: {e}")
-# --- 6. BOTTOM ROW: POSITIONS ---
+# --- 6. BOTTOM ROW: ACTIVE POSITIONS ---
+st.write("---")
 st.write("### 📁 Active Positions")
+
 try:
+    # Fetch current holdings from Alpaca
     positions = trading_client.get_all_positions()
 
     if not positions:
-        st.write("No active trades. Bot is waiting for signals.")
+        st.info("No active trades. Bot is waiting for signals.")
     else:
-        # Convert Alpaca positions to a clean table
+        # 1. Create a clean list for the table
         pos_data = []
         for p in positions:
             pos_data.append({
@@ -103,14 +106,19 @@ try:
                 "Qty": p.qty,
                 "Entry Price": f"${float(p.avg_entry_price):.2f}",
                 "Current Price": f"${float(p.current_price):.2f}",
-                "P/L ($)": f"${float(p.unrealized_pl):.2f}"
+                "P/L ($)": f"${float(p.unrealized_pl):.2f}",
+                "P/L (%)": f"{float(p.unrealized_plpc)*100:.2f}%"
             })
-        st.table(pos_data)
+        
+        # 2. Convert to a DataFrame
+        df_pos = pd.DataFrame(pos_data)
+
+        # THE FIX: Force all data to be simple strings to avoid the "LargeUtf8" crash
+        df_pos = df_pos.astype(str)
+
+        # 3. Display the clean table
+        # st.table is used here because it is safer than st.dataframe for this specific error
+        st.table(df_pos)
+
 except Exception as e:
-    st.error(f"Error fetching positions: {e}")
-
-
-
-
-
-
+    st.error(f"Could not load positions: {e}")
