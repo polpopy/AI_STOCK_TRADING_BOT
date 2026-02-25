@@ -98,27 +98,23 @@ try:
     if not positions:
         st.info("No active trades. Bot is waiting for signals.")
     else:
-        # 1. Create a clean list for the table
-        pos_data = []
-        for p in positions:
-            pos_data.append({
-                "Symbol": p.symbol,
-                "Qty": p.qty,
-                "Entry Price": f"${float(p.avg_entry_price):.2f}",
-                "Current Price": f"${float(p.current_price):.2f}",
-                "P/L ($)": f"${float(p.unrealized_pl):.2f}",
-                "P/L (%)": f"{float(p.unrealized_plpc)*100:.2f}%"
-            })
+        # Build a raw text (Markdown) table to completely bypass PyArrow errors
+        md_table = "| Symbol | Qty | Entry Price | Current Price | P/L ($) | P/L (%) |\n"
+        md_table += "|---|---|---|---|---|---|\n"
         
-        # 2. Convert to a DataFrame
-        df_pos = pd.DataFrame(pos_data)
-
-        # THE FIX: Force all data to be simple strings to avoid the "LargeUtf8" crash
-        df_pos = df_pos.astype(str)
-
-        # 3. Display the clean table
-        # st.table is used here because it is safer than st.dataframe for this specific error
-        st.table(df_pos)
+        for p in positions:
+            symbol = str(p.symbol)
+            qty = str(p.qty)
+            entry = f"${float(p.avg_entry_price):.2f}"
+            current = f"${float(p.current_price):.2f}"
+            pl_usd = f"${float(p.unrealized_pl):.2f}"
+            pl_percent = f"{float(p.unrealized_plpc)*100:.2f}%"
+            
+            # Add each row to the table
+            md_table += f"| **{symbol}** | {qty} | {entry} | {current} | {pl_usd} | {pl_percent} |\n"
+        
+        # Display the pure text table
+        st.markdown(md_table)
 
 except Exception as e:
     st.error(f"Could not load positions: {e}")
