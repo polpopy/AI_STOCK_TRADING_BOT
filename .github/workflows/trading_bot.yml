@@ -22,7 +22,6 @@ jobs:
 
       - name: Execute Trading Scan
         env:
-          # This tells GitHub: "Take my Secret and call it ALPACA_API_KEY inside the script"
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: python analyst.py
