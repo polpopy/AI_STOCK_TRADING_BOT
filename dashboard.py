@@ -7,18 +7,13 @@ import analyst  # <-- We are importing your Brain file here!
 from alpaca.trading.client import TradingClient
 from datetime import datetime
 
-# --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Polpo & Klamo nite AI Trading Hub", layout="wide", page_icon="📈")
 
-# --- 2. CONNECT TO ALPACA ---
-# This uses the same 'Hands' we set up for your bot
 trading_client = TradingClient(config.ALPACA_API_KEY, config.ALPACA_SECRET_KEY, paper=True)
 
-# --- 3. SIDEBAR (Control Panel) ---
-# UPGRADED: Button is now connected to analyst.py (Crash-proof version)
 if st.sidebar.button("Run Manual Scan Now"):
     st.sidebar.info("⏳ Scanning Markets... Please wait.")
-    scan_results = analyst.run_full_scan() # Triggers the logic
+    scan_results = analyst.run_full_scan()
     
     st.sidebar.write("---")
     st.sidebar.write("### 📡 Scan Results:")
@@ -28,7 +23,6 @@ if st.sidebar.button("Run Manual Scan Now"):
         else:
             st.sidebar.write(f"**{res['ticker']}**: {res['signal']} (${res['price']:.2f})")
 
-# --- 4. TOP ROW: LIVE METRICS ---
 st.title("📊 Portfolio Overview")
 
 try:
@@ -39,11 +33,10 @@ try:
     col3.metric("Equity", f"${float(account.equity):,.2f}")
 except Exception as e:
     st.error(f"Alpaca Connection Error: {e}")
-    col1, col2, col3, col4 = st.columns(4) # Fallback columns
+    col1, col2, col3, col4 = st.columns(4) 
 
-# Check Market Shield Status (S&P 500)
 try:
-    # UPGRADED: Added threads=False to prevent cloud freeze
+
     spy = yf.download("SPY", period="5d", interval="1d", progress=False, threads=False)
     if isinstance(spy.columns, pd.MultiIndex): spy.columns = spy.columns.get_level_values(0)
     market_price = spy['Close'].iloc[-1]
@@ -52,7 +45,6 @@ try:
 except:
     col4.metric("Market Shield", "⚠️ ERROR")
 
-# --- 5. MIDDLE ROW: LIVE CHARTS ---
 st.write("### 🕯️ Watchlist Technicals")
 selected_stock = st.selectbox("Select a stock to inspect:", config.WATCHLIST)
 
@@ -62,12 +54,10 @@ data = yf.download(clean_ticker, period="60d", interval="1d", progress=False, th
 if data.empty:
     st.error(f"⚠️ Yahoo Finance returned no data for {clean_ticker}.")
 else:
-    # 1. Flatten the MultiIndex
+
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
         
-    # 2. THE NUCLEAR OPTION: Convert everything to raw Python lists.
-    # This strips away ALL hidden Yahoo metadata that is crashing Plotly.
     x_dates = data.index.strftime('%Y-%m-%d').tolist()
     open_data = data['Open'].tolist()
     high_data = data['High'].tolist()
@@ -87,18 +77,18 @@ else:
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
         st.error(f"Chart Drawing Error: {e}")
-# --- 6. BOTTOM ROW: ACTIVE POSITIONS ---
+        
 st.write("---")
 st.write("### 📁 Active Positions")
 
 try:
-    # Fetch current holdings from Alpaca
+   
     positions = trading_client.get_all_positions()
 
     if not positions:
         st.info("No active trades. Bot is waiting for signals.")
     else:
-        # Build a raw text (Markdown) table to completely bypass PyArrow errors
+     
         md_table = "| Symbol | Qty | Entry Price | Current Price | P/L ($) | P/L (%) |\n"
         md_table += "|---|---|---|---|---|---|\n"
         
@@ -110,10 +100,9 @@ try:
             pl_usd = f"${float(p.unrealized_pl):.2f}"
             pl_percent = f"{float(p.unrealized_plpc)*100:.2f}%"
             
-            # Add each row to the table
             md_table += f"| **{symbol}** | {qty} | {entry} | {current} | {pl_usd} | {pl_percent} |\n"
         
-        # Display the pure text table
+
         st.markdown(md_table)
 
 except Exception as e:
